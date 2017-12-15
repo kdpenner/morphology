@@ -8,8 +8,12 @@ from astropy.stats import sigma_clipped_stats
 from photutils import make_source_mask
 from astropy.table import Table
 from astropy.wcs import WCS
+from astropy.wcs.utils import proj_plane_pixel_scales
 import sys
 from astropy.io import ascii
+import re
+from astropy.table import vstack
+import astropy.units as u
 #import warnings
 #warnings.filterwarnings("always")
 
@@ -32,8 +36,7 @@ def measure_morphology(imgdata, segmap, median):
 
   imgdata -= median
   source_morphs = statmorph.source_morphology(imgdata, segmap,
-  border_size = 0)
-#  , cutout_extent = 2)
+  border_size = 0, cutout_extent = 10)
 
   return source_morphs
   
@@ -54,14 +57,17 @@ def build_table(all_morphs, header):
     wcs = WCS(header)
 
     posasym = wcs.all_pix2world(morph.xc_asymmetry, 
-                                morph.yc_asymmetry, 1, 
+                                morph.yc_asymmetry, 0, 
                                 ra_dec_order = True)
-
+                                
+    scale = proj_plane_pixel_scales(wcs.celestial)
+    
+    radiusconv = (scale[0]*u.deg).to('arcsec').value
 
     columndata[i, :] = [morph.asymmetry, posasym[0], 
              posasym[1], morph.concentration, 
-             morph.smoothness, morph.rhalf_ellip,
-             morph.rpetro_ellip, morph.gini, 
+             morph.smoothness, morph.rhalf_ellip*radiusconv,
+             morph.rpetro_ellip*radiusconv, morph.gini, 
              morph.m20, morph.flag,
              morph.sn_per_pixel]
 
@@ -71,6 +77,10 @@ def build_table(all_morphs, header):
            'flag', 'S/N per pixel')
 
   t = Table(columndata, names = names)
+  t['RA center for asymmetry'].unit = u.deg
+  t['Dec center for asymmetry'].unit = u.deg
+  t['half light elliptical semimajor axis length'].unit = u.arcsec
+  t['petrosian elliptical semimajor axis length'].unit = u.arcsec
 
   return t
 
@@ -78,13 +88,19 @@ def main():
 
   args = sys.argv[1:]
   
+  table = Table()
+  
   for arg in args:
     img = fits.open(arg)
+    fileroot = re.split('fits\Z', arg)[0]
     segm, bkg_median = make_segmap(img[0].data)
     obj_morphs = measure_morphology(img[0].data, segm, bkg_median)
-    table = build_table(obj_morphs, img[0].header)
-    
-  table.write(arg+'t.cat', format = 'ascii.fixed_width', overwrite = True)
+    t = build_table(obj_morphs, img[0].header)
+    t['filename'] = arg
+    t.write(fileroot+'cat', format = 'ascii.fixed_width', overwrite = True)
+    table = vstack([table, t])
+
+  table.write('allmorphs.cat', format = 'ascii.fixed_width', overwrite = True)
 
 if __name__ == '__main__':
   main()
