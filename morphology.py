@@ -32,20 +32,23 @@ def make_segmap(imgdata):
 
   return segmap, median
 
-def measure_morphology(imgdata, segmap, median):
+def measure_morphology(imgdata, segmap, median, extent):
 
   imgdata -= median
   source_morphs = statmorph.source_morphology(imgdata, segmap,
-  border_size = 0, cutout_extent = 10)
+  border_size = 0, cutout_extent = extent)
 
   return source_morphs
   
-def write_gini_mask(imgdata, one_morph, filename):
+def write_gini_masks(imgdata, header, all_morphs, filename):
 
   writemask = np.zeros(imgdata.shape)
-  writemask[one_morph._slice_stamp][one_morph._segmap_gini] = 1.
 
-  hdu = fits.PrimaryHDU(header = img[0].header, data = writemask)
+  for morph in all_morphs:
+
+    writemask[morph._slice_stamp][morph._segmap_gini] = 1.
+
+  hdu = fits.PrimaryHDU(header = header, data = writemask)
   hdu.writeto(filename, overwrite = True)
   
 def build_table(all_morphs, header):
@@ -94,7 +97,13 @@ def main():
     img = fits.open(arg)
     fileroot = re.split('fits\Z', arg)[0]
     segm, bkg_median = make_segmap(img[0].data)
-    obj_morphs = measure_morphology(img[0].data, segm, bkg_median)
+
+#    hdu = fits.PrimaryHDU(header = img[0].header, data = segm.data)
+#    hdu.writeto('blah.fits', overwrite = True)
+
+    obj_morphs = measure_morphology(img[0].data, segm, bkg_median, 2)
+    write_gini_masks(img[0].data, img[0].header, obj_morphs,
+    fileroot+'gini.fits')
     t = build_table(obj_morphs, img[0].header)
     t['filename'] = arg
     t.write(fileroot+'cat', format = 'ascii.fixed_width', overwrite = True)
