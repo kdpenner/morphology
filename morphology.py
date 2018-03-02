@@ -30,13 +30,15 @@ def make_segmap(imgdata):
 #  hdu = fits.PrimaryHDU(header = img[0].header, data = segmap.data)
 #  hdu.writeto('segtest.fits', overwrite = True)
 
-  return segmap, median
+  rms_array = np.ones(imgdata.shape)*rms
 
-def measure_morphology(imgdata, segmap, median, extent):
+  return segmap, median, rms_array
+
+def measure_morphology(imgdata, segmap, median, rmsarr, extent):
 
   imgdata -= median
   source_morphs = statmorph.source_morphology(imgdata, segmap,
-  border_size = 0, cutout_extent = extent)
+  weightmap = rmsarr, cutout_extent = extent)
 
   return source_morphs
   
@@ -96,18 +98,20 @@ def main():
   for arg in args:
     img = fits.open(arg)
     fileroot = re.split('fits\Z', arg)[0]
-    segm, bkg_median = make_segmap(img[0].data)
+    segm, bkg_median, bkg_rms_arr = make_segmap(img[0].data)
 
-#    hdu = fits.PrimaryHDU(header = img[0].header, data = segm.data)
-#    hdu.writeto('blah.fits', overwrite = True)
+    hdu = fits.PrimaryHDU(header = img[0].header, data = segm.data)
+    hdu.writeto(fileroot+'seg.fits', overwrite = True)
 
-    obj_morphs = measure_morphology(img[0].data, segm, bkg_median, 2)
-    write_gini_masks(img[0].data, img[0].header, obj_morphs,
-    fileroot+'gini.fits')
-    t = build_table(obj_morphs, img[0].header)
-    t['filename'] = arg
-    t.write(fileroot+'cat', format = 'ascii.fixed_width', overwrite = True)
-    table = vstack([table, t])
+    obj_morphs = measure_morphology(img[0].data, segm, bkg_median, 
+    bkg_rms_arr, 2)
+    if obj_morphs:
+      write_gini_masks(img[0].data, img[0].header, obj_morphs,
+      fileroot+'gini.fits')
+      t = build_table(obj_morphs, img[0].header)
+      t['filename'] = arg
+      t.write(fileroot+'cat', format = 'ascii.fixed_width', overwrite = True)
+      table = vstack([table, t])
 
   table.write('allmorphs.cat', format = 'ascii.fixed_width', overwrite = True)
 
