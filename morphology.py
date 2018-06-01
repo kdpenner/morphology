@@ -33,12 +33,24 @@ def make_segmap(imgdata):
   rms_array = np.ones(imgdata.shape)*rms
 
   return segmap, median, rms_array
+  
+def return_bkg(imgdata, segmap):
+
+  mask = ~segmap
+  mean, median, rms = sigma_clipped_stats(imgdata, sigma = 3, mask = mask)
+  
+  rms_array = np.ones(imgdata.shape)*rms
+  
+  return median, rms_array
 
 def measure_morphology(imgdata, segmap, median, rmsarr, extent):
 
   imgdata -= median
-  source_morphs = statmorph.source_morphology(imgdata, segmap,
-  weightmap = rmsarr, cutout_extent = extent)
+  try:
+    source_morphs = statmorph.source_morphology(imgdata, segmap,
+    weightmap = rmsarr, cutout_extent = extent)
+  except AssertionError:
+    source_morphs = False
 
   return source_morphs
   
@@ -98,12 +110,20 @@ def main():
   for arg in args:
     img = fits.open(arg)
     fileroot = re.split('fits\Z', arg)[0]
-    segm, bkg_median, bkg_rms_arr = make_segmap(img[0].data)
+    #segm, bkg_median, bkg_rms_arr = make_segmap(img[0].data)
 
-    hdu = fits.PrimaryHDU(header = img[0].header, data = segm.data)
-    hdu.writeto(fileroot+'seg.fits', overwrite = True)
+    #hdu = fits.PrimaryHDU(header = img[0].header, data = segm.data)
+    #hdu.writeto(fileroot+'seg.fits', overwrite = True)
 
-    obj_morphs = measure_morphology(img[0].data, segm, bkg_median, 
+    segm_fname = fileroot+'seg.fits'
+
+    segm = (fits.open(segm_fname))[0].data
+    
+    segm += 1
+    
+    bkg_median, bkg_rms_arr = return_bkg(img[0].data, segm.astype(bool))
+
+    obj_morphs = measure_morphology(img[0].data, segm, bkg_median,
     bkg_rms_arr, 2)
     if obj_morphs:
       write_gini_masks(img[0].data, img[0].header, obj_morphs,
