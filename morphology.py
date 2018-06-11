@@ -36,7 +36,7 @@ def make_segmap(imgdata):
   
 def return_bkg(imgdata, segmap):
 
-  mask = ~segmap
+  mask = segmap
   mean, median, rms = sigma_clipped_stats(imgdata, sigma = 3, mask = mask)
   
   rms_array = np.ones(imgdata.shape)*rms
