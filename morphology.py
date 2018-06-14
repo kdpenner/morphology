@@ -27,9 +27,6 @@ def make_segmap(imgdata):
 
   segmap = photutils.detect_sources(imgdata, threshold, npixels = 5)
 
-#  hdu = fits.PrimaryHDU(header = img[0].header, data = segmap.data)
-#  hdu.writeto('segtest.fits', overwrite = True)
-
   rms_array = np.ones(imgdata.shape)*rms
 
   return segmap, median, rms_array
@@ -46,13 +43,22 @@ def return_bkg(imgdata, segmap):
 def measure_morphology(imgdata, segmap, median, rmsarr, extent):
 
   imgdata -= median
-  try:
-    source_morphs = statmorph.source_morphology(imgdata, segmap,
-    weightmap = rmsarr, cutout_extent = extent)
-  except AssertionError:
-    source_morphs = False
+  
+  source_of_interest = segmap[(segmap.shape[0]-1)/2, (segmap.shape[1]-1)/2]
 
-  return source_morphs
+  segmap = photutils.SegmentationImage(segmap)
+  segmap.keep_labels(labels = source_of_interest)
+
+  if source_of_interest is not 0:
+    try:
+      source_morph = statmorph.source_morphology(imgdata, segmap,
+      weightmap = rmsarr, cutout_extent = extent)
+    except AssertionError:
+      source_morph = []
+  elif source_of_interest is 0:
+    source_morph = []
+
+  return source_morph
   
 def write_gini_masks(imgdata, header, all_morphs, filename):
 
