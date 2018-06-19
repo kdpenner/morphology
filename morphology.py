@@ -14,6 +14,8 @@ from astropy.io import ascii
 import re
 from astropy.table import vstack
 import astropy.units as u
+from scipy.ndimage.interpolation import shift
+import itertools
 #import warnings
 #warnings.filterwarnings("always")
 
@@ -54,11 +56,40 @@ def measure_morphology(imgdata, segmap, median, rmsarr, extent):
       source_morph = statmorph.source_morphology(imgdata, segmap,
       weightmap = rmsarr, cutout_extent = extent)
     except AssertionError:
-      source_morph = []
+      source_morph = None
   elif source_of_interest is 0:
-    source_morph = []
+    source_morph = None
 
   return source_morph
+
+def mod_segmap_1pix(segmap):
+
+  source_of_interest = segmap[(segmap.shape[0]-1)/2, (segmap.shape[1]-1)/2]
+
+  segmap = photutils.SegmentationImage(segmap)
+  segmap.keep_labels(labels = source_of_interest)
+
+  segmap = segmap.data.astype(bool)
+
+  print(segmap[90:110, 90:110].astype(int))
+  
+  segmap_expanded = None
+
+  for shift_arr in itertools.product([-1, 0, 1], repeat = 2):
+    if segmap_expanded is not None:
+      segmap_expanded = segmap_expanded + shift(segmap, shift_arr)
+      segmap_shrunk = segmap_shrunk & shift(segmap, shift_arr)
+    else:
+      segmap_expanded = segmap + shift(segmap, shift_arr)
+      segmap_shrunk = segmap & shift(segmap, shift_arr)
+      
+  segmap_expanded = segmap_expanded.astype(int)
+  segmap_shrunk = segmap_shrunk.astype(int)
+    
+  print(segmap_expanded[90:110, 90:110])
+  print(segmap_shrunk[90:110, 90:110])
+    
+  return segmap_expanded, segmap_shrunk
   
 def write_gini_masks(imgdata, header, all_morphs, filename):
 
@@ -129,17 +160,25 @@ def main():
     
     bkg_median, bkg_rms_arr = return_bkg(img[0].data, segm.astype(bool))
 
-    obj_morphs = measure_morphology(img[0].data, segm, bkg_median,
+    obj_morph = measure_morphology(img[0].data, segm, bkg_median,
     bkg_rms_arr, 2)
-    if obj_morphs:
-      write_gini_masks(img[0].data, img[0].header, obj_morphs,
+    
+    if obj_morph:
+
+      mod_segmap_1pix(segm)
+      
+      write_gini_masks(img[0].data, img[0].header, obj_morph,
       fileroot+'gini.fits')
-      t = build_table(obj_morphs, img[0].header)
+
+      t = build_table(obj_morph, img[0].header)
+
       t['filename'] = arg
+
       t.write(fileroot+'cat', format = 'ascii.fixed_width', overwrite = True)
       table = vstack([table, t])
 
-  table.write('allmorphs.cat', format = 'ascii.fixed_width', overwrite = True)
+  if table:
+    table.write('allmorphs.cat', format = 'ascii.fixed_width', overwrite = True)
 
 if __name__ == '__main__':
   main()
