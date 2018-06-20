@@ -70,8 +70,6 @@ def mod_segmap_1pix(segmap):
   segmap.keep_labels(labels = source_of_interest)
 
   segmap = segmap.data.astype(bool)
-
-  print(segmap[90:110, 90:110].astype(int))
   
   segmap_expanded = None
 
@@ -86,44 +84,38 @@ def mod_segmap_1pix(segmap):
   segmap_expanded = segmap_expanded.astype(int)
   segmap_shrunk = segmap_shrunk.astype(int)
     
-  print(segmap_expanded[90:110, 90:110])
-  print(segmap_shrunk[90:110, 90:110])
-    
   return segmap_expanded, segmap_shrunk
   
-def write_gini_masks(imgdata, header, all_morphs, filename):
+def write_gini_mask(imgdata, header, morph, filename):
 
   writemask = np.zeros(imgdata.shape)
-
-  for morph in all_morphs:
-
-    writemask[morph._slice_stamp][morph._segmap_gini] = 1.
+  
+  writemask[morph._slice_stamp][morph._segmap_gini] = 1.
 
   hdu = fits.PrimaryHDU(header = header, data = writemask)
   hdu.writeto(filename, overwrite = True)
   
 def build_table(all_morphs, header):
 
-  columndata = np.zeros((len(all_morphs), 11))
+  columndata = np.zeros((1, 11))
 
-  for i, morph in enumerate(all_morphs):
+  wcs = WCS(header)
 
-    wcs = WCS(header)
-
-    posasym = wcs.all_pix2world(morph.xc_asymmetry, 
-                                morph.yc_asymmetry, 0, 
-                                ra_dec_order = True)
+  posasym = wcs.all_pix2world(all_morphs[0].xc_asymmetry, 
+                              all_morphs[0].yc_asymmetry, 0, 
+                              ra_dec_order = True)
                                 
-    scale = proj_plane_pixel_scales(wcs.celestial)
+  scale = proj_plane_pixel_scales(wcs.celestial)
     
-    radiusconv = (scale[0]*u.deg).to('arcsec').value
+  radiusconv = (scale[0]*u.deg).to('arcsec').value
 
-    columndata[i, :] = [morph.asymmetry, posasym[0], 
-             posasym[1], morph.concentration, 
-             morph.smoothness, morph.rhalf_ellip*radiusconv,
-             morph.rpetro_ellip*radiusconv, morph.gini, 
-             morph.m20, morph.flag,
-             morph.sn_per_pixel]
+
+  columndata[0, :] = [all_morphs[0].asymmetry, posasym[0], 
+             posasym[1], all_morphs[0].concentration, 
+             all_morphs[0].smoothness, all_morphs[0].rhalf_ellip*radiusconv,
+             all_morphs[0].rpetro_ellip*radiusconv, all_morphs[0].gini, 
+             all_morphs[0].m20, all_morphs[0].flag,
+             all_morphs[0].sn_per_pixel]
 
   names = ('asymmetry', 'RA center for asymmetry', 'Dec center for asymmetry',
            'concentration', 'smoothness', 'half light elliptical semimajor axis length',
@@ -165,9 +157,21 @@ def main():
     
     if obj_morph:
 
-      mod_segmap_1pix(segm)
+      big_segm, small_segm = mod_segmap_1pix(segm)
+
+      big_bkg_median, big_bkg_rms_arr = return_bkg(img[0].data, big_segm.astype(bool))
+      small_bkg_median, small_bkg_rms_arr = return_bkg(img[0].data, small_segm.astype(bool))
+
+      big_obj_morph = measure_morphology(img[0].data, big_segm, big_bkg_median,
+      big_bkg_rms_arr, 2)
       
-      write_gini_masks(img[0].data, img[0].header, obj_morph,
+      small_obj_morph = measure_morphology(img[0].data, small_segm, small_bkg_median,
+      small_bkg_rms_arr, 2)
+      
+      if big_obj_morph and small_obj_morph:
+        obj_morph = [obj_morph[0], big_obj_morph[0], small_obj_morph[0]]
+      
+      write_gini_mask(img[0].data, img[0].header, obj_morph[0],
       fileroot+'gini.fits')
 
       t = build_table(obj_morph, img[0].header)
