@@ -97,7 +97,7 @@ def write_gini_mask(imgdata, header, morph, filename):
   
 def build_table(all_morphs, header):
 
-  columndata = np.zeros((1, 11))
+  columndata = np.zeros((1, 21))
 
   wcs = WCS(header)
 
@@ -109,17 +109,31 @@ def build_table(all_morphs, header):
     
   radiusconv = (scale[0]*u.deg).to('arcsec').value
 
+  carr = [c.concentration for c in all_morphs]
+  aarr = [a.asymmetry for a in all_morphs]
+  sarr = [s.smoothness for s in all_morphs]
+  garr = [g.gini for g in all_morphs]
+  marr = [m.m20 for m in all_morphs]
 
   columndata[0, :] = [all_morphs[0].asymmetry, posasym[0], 
-             posasym[1], all_morphs[0].concentration, 
-             all_morphs[0].smoothness, all_morphs[0].rhalf_ellip*radiusconv,
-             all_morphs[0].rpetro_ellip*radiusconv, all_morphs[0].gini, 
-             all_morphs[0].m20, all_morphs[0].flag,
+             posasym[1], np.mean(aarr), np.std(aarr), 
+             all_morphs[0].concentration, np.mean(carr), np.std(carr), 
+             all_morphs[0].smoothness, np.mean(sarr), np.std(sarr), 
+             all_morphs[0].rhalf_ellip*radiusconv,
+             all_morphs[0].rpetro_ellip*radiusconv, 
+             all_morphs[0].gini, np.mean(garr), np.std(garr), 
+             all_morphs[0].m20, np.mean(marr), np.std(marr), 
+             all_morphs[0].flag,
              all_morphs[0].sn_per_pixel]
 
   names = ('asymmetry', 'RA center for asymmetry', 'Dec center for asymmetry',
-           'concentration', 'smoothness', 'half light elliptical semimajor axis length',
-           'petrosian elliptical semimajor axis length', 'gini', 'm20', 
+           'mean asym', 'stddev asym', 
+           'concentration', 'mean concen', 'stddev concen', 
+           'smoothness', 'mean smooth', 'stddev smooth', 
+           'half light elliptical semimajor axis length',
+           'petrosian elliptical semimajor axis length', 
+           'gini', 'mean gini', 'stddev gini', 
+           'm20', 'mean m20', 'stddev m20', 
            'flag', 'S/N per pixel')
 
   t = Table(columndata, names = names)
