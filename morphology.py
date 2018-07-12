@@ -161,8 +161,9 @@ def main():
     segm_fname = fileroot+'seg.fits'
 
     segm = (fits.open(segm_fname))[0].data
-    
-    segm += 1
+
+# find logic for this    
+#    segm += 1
     
     bkg_median, bkg_rms_arr = return_bkg(img[0].data, segm.astype(bool))
 
