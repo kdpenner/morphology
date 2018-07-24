@@ -163,38 +163,41 @@ def main():
     segm = (fits.open(segm_fname))[0].data
 
 # find logic for this    
-#    segm += 1
+    if -1 in segm:
+      segm += 1
+      
+    if 0 in segm:
     
-    bkg_median, bkg_rms_arr = return_bkg(img[0].data, segm.astype(bool))
+      bkg_median, bkg_rms_arr = return_bkg(img[0].data, segm.astype(bool))
 
-    obj_morph = measure_morphology(img[0].data, segm, bkg_median,
-    bkg_rms_arr, 2)
+      obj_morph = measure_morphology(img[0].data, segm, bkg_median,
+      bkg_rms_arr, 2)
     
-    if obj_morph:
+      if obj_morph:
 
-      big_segm, small_segm = mod_segmap_1pix(segm)
+        big_segm, small_segm = mod_segmap_1pix(segm)
 
-      big_bkg_median, big_bkg_rms_arr = return_bkg(img[0].data, big_segm.astype(bool))
-      small_bkg_median, small_bkg_rms_arr = return_bkg(img[0].data, small_segm.astype(bool))
+        big_bkg_median, big_bkg_rms_arr = return_bkg(img[0].data, big_segm.astype(bool))
+        small_bkg_median, small_bkg_rms_arr = return_bkg(img[0].data, small_segm.astype(bool))
 
-      big_obj_morph = measure_morphology(img[0].data, big_segm, big_bkg_median,
-      big_bkg_rms_arr, 2)
+        big_obj_morph = measure_morphology(img[0].data, big_segm, big_bkg_median,
+        big_bkg_rms_arr, 2)
       
-      small_obj_morph = measure_morphology(img[0].data, small_segm, small_bkg_median,
-      small_bkg_rms_arr, 2)
+        small_obj_morph = measure_morphology(img[0].data, small_segm, small_bkg_median,
+        small_bkg_rms_arr, 2)
       
-      if big_obj_morph and small_obj_morph:
-        obj_morph = [obj_morph[0], big_obj_morph[0], small_obj_morph[0]]
+        if big_obj_morph and small_obj_morph:
+          obj_morph = [obj_morph[0], big_obj_morph[0], small_obj_morph[0]]
       
-      write_gini_mask(img[0].data, img[0].header, obj_morph[0],
-      fileroot+'gini.fits')
+        write_gini_mask(img[0].data, img[0].header, obj_morph[0],
+        fileroot+'gini.fits')
 
-      t = build_table(obj_morph, img[0].header)
+        t = build_table(obj_morph, img[0].header)
 
-      t['filename'] = arg
+        t['filename'] = arg
 
-      t.write(fileroot+'cat', format = 'ascii.fixed_width', overwrite = True)
-      table = vstack([table, t])
+        t.write(fileroot+'cat', format = 'ascii.fixed_width', overwrite = True)
+        table = vstack([table, t])
 
   if table:
     table.write('allmorphs.cat', format = 'ascii.fixed_width', overwrite = True)
